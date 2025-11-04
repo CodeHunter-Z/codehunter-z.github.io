@@ -55,30 +55,59 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            font-size: 16px;
         }
         button:disabled {
             background: #cccccc;
             cursor: not-allowed;
         }
-        .debug {
+        .welcome {
             position: fixed;
-            top: 60px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             color: white;
-            padding: 8px 12px;
+            z-index: 3000;
+            text-align: center;
+            padding: 20px;
+        }
+        .welcome h1 {
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .welcome p {
+            margin-bottom: 30px;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        .start-main {
+            padding: 15px 30px;
+            background: #4CAF50;
+            color: white;
+            border: none;
             border-radius: 5px;
-            font-size: 12px;
-            z-index: 2000;
-            max-width: 300px;
+            font-size: 18px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
+    <div class="welcome" id="welcome">
+        <h1>温馨弹窗程序</h1>
+        <p>这个程序会显示300个温馨弹窗，并播放背景音乐</p>
+        <p>点击下方按钮开始体验</p>
+        <button class="start-main" id="startMain">开始体验</button>
+    </div>
+    
     <div class="status" id="status">准备就绪</div>
-    <div class="debug" id="debug"></div>
     <div class="control">
-        <button id="startBtn">开始温馨弹窗</button>
+        <button id="startBtn" style="display:none;">开始温馨弹窗</button>
         <button id="stopBtn" disabled>停止</button>
     </div>
 
@@ -106,9 +135,11 @@
         const totalTips = 300;
         let isRunning = false;
         let audio = null;
+        let musicStarted = false;
 
+        const welcomeEl = document.getElementById('welcome');
         const statusEl = document.getElementById('status');
-        const debugEl = document.getElementById('debug');
+        const startMainBtn = document.getElementById('startMain');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
 
@@ -116,31 +147,62 @@
             statusEl.textContent = message;
         }
 
-        function debug(message) {
-            debugEl.textContent = message;
-            console.log(message);
-        }
-
-        // 检查音乐文件是否存在
-        function checkMusicFile() {
-            // 替换为你的实际GitHub用户名和仓库名
-            const githubUsername = '你的GitHub用户名'; // 请修改这里
+        // 初始化音频 - 但不立即播放
+        function initAudio() {
+            // 替换为你的GitHub用户名
+            const githubUsername = 'codehunter-z'; // 请确保这是正确的用户名
             const musicUrl = `https://${githubUsername}.github.io/background_music.mp3`;
             
-            return fetch(musicUrl, { method: 'HEAD' })
-                .then(response => {
-                    if (response.ok) {
-                        debug('音乐文件存在');
-                        return musicUrl;
-                    } else {
-                        debug('音乐文件不存在，尝试相对路径');
-                        return 'background_music.mp3';
-                    }
-                })
-                .catch(() => {
-                    debug('音乐文件检查失败，使用相对路径');
-                    return 'background_music.mp3';
+            audio = new Audio(musicUrl);
+            audio.volume = 0.5;
+            
+            // 添加事件监听器
+            audio.addEventListener('canplay', () => {
+                console.log('音频可以播放了');
+            });
+            
+            audio.addEventListener('error', (e) => {
+                console.error('音频加载错误:', e);
+                updateStatus("音乐加载失败，但弹窗会继续显示");
+            });
+            
+            audio.addEventListener('ended', () => {
+                console.log('音乐播放完毕');
+                musicStarted = false;
+            });
+            
+            return audio;
+        }
+
+        // 播放音乐的函数
+        function playMusic() {
+            if (!audio || musicStarted) return;
+            
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    console.log('音乐开始播放');
+                    musicStarted = true;
+                    updateStatus("音乐播放中...");
+                }).catch(error => {
+                    console.log('自动播放被阻止:', error);
+                    updateStatus("点击页面任意位置播放音乐");
+                    
+                    // 添加点击事件来播放音乐
+                    const playOnClick = () => {
+                        audio.play().then(() => {
+                            console.log('用户交互后音乐开始播放');
+                            musicStarted = true;
+                            updateStatus("音乐播放中...");
+                        }).catch(e => {
+                            console.error('播放失败:', e);
+                        });
+                        document.removeEventListener('click', playOnClick);
+                    };
+                    document.addEventListener('click', playOnClick);
                 });
+            }
         }
 
         function createTip() {
@@ -165,7 +227,7 @@
             }, 10000);
         }
 
-        async function startTips() {
+        function startTips() {
             if (isRunning) return;
             
             isRunning = true;
@@ -175,56 +237,8 @@
             
             updateStatus("正在创建弹窗...");
             
-            try {
-                // 获取正确的音乐文件路径
-                const musicPath = await checkMusicFile();
-                debug(`使用音乐路径: ${musicPath}`);
-                
-                // 播放背景音乐
-                audio = new Audio(musicPath);
-                audio.volume = 0.5;
-                
-                // 添加事件监听器来跟踪音频状态
-                audio.addEventListener('canplay', () => {
-                    debug('音频可以播放');
-                });
-                
-                audio.addEventListener('error', (e) => {
-                    debug(`音频错误: ${e.target.error.code}`);
-                });
-                
-                audio.addEventListener('loadstart', () => {
-                    debug('开始加载音频');
-                });
-                
-                // 尝试播放音乐
-                const playPromise = audio.play();
-                
-                if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        debug('音乐开始播放');
-                        updateStatus("音乐播放中...");
-                    }).catch(error => {
-                        debug(`自动播放被阻止: ${error}`);
-                        updateStatus("点击页面任意位置播放音乐");
-                        
-                        // 添加点击事件来播放音乐
-                        const playOnClick = () => {
-                            audio.play().then(() => {
-                                debug('用户交互后音乐开始播放');
-                                updateStatus("音乐播放中...");
-                            }).catch(e => {
-                                debug(`播放失败: ${e}`);
-                            });
-                            document.removeEventListener('click', playOnClick);
-                        };
-                        document.addEventListener('click', playOnClick);
-                    });
-                }
-            } catch (e) {
-                debug(`音乐初始化错误: ${e}`);
-                updateStatus("音乐播放失败，继续创建弹窗...");
-            }
+            // 播放音乐
+            playMusic();
             
             // 创建弹窗
             for (let i = 0; i < totalTips; i++) {
@@ -236,21 +250,35 @@
             isRunning = false;
             startBtn.disabled = false;
             stopBtn.disabled = true;
-            if (audio) {
+            if (audio && musicStarted) {
                 audio.pause();
                 audio.currentTime = 0;
+                musicStarted = false;
             }
             updateStatus("已停止");
             // 清除所有弹窗
             document.querySelectorAll('.tip').forEach(tip => tip.remove());
         }
 
+        // 主开始按钮点击事件
+        startMainBtn.addEventListener('click', function() {
+            // 隐藏欢迎界面
+            welcomeEl.style.display = 'none';
+            // 显示主控制按钮
+            startBtn.style.display = 'block';
+            
+            // 初始化音频
+            initAudio();
+            
+            // 自动开始弹窗
+            startTips();
+        });
+
         startBtn.addEventListener('click', startTips);
         stopBtn.addEventListener('click', stopTips);
 
         // 初始化
-        updateStatus("点击开始按钮");
-        debug("页面加载完成");
+        updateStatus("准备就绪");
     </script>
 </body>
 </html>
