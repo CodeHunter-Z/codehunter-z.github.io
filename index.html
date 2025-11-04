@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>温馨弹窗</title>
     <style>
-        /* 保持之前的样式不变 */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             margin: 0; padding: 0; overflow: hidden; 
@@ -57,22 +56,44 @@
             border-radius: 5px;
             cursor: pointer;
         }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .debug {
+            position: fixed;
+            top: 60px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 2000;
+            max-width: 300px;
+        }
     </style>
 </head>
 <body>
     <div class="status" id="status">准备就绪</div>
+    <div class="debug" id="debug"></div>
     <div class="control">
         <button id="startBtn">开始温馨弹窗</button>
         <button id="stopBtn" disabled>停止</button>
     </div>
 
     <script>
-        // 温馨语句列表（简化版本，你可以后续添加更多）
+        // 温馨语句列表
         const tips = [
             "你今天真好看！", "世界因你而美好", "保持微笑 :)", "你是最棒的",
             "一切都会好起来的", "相信自己", "今天也是美好的一天", "加油！",
             "保持积极心态", "你值得被爱", "每一天都是新的开始", "坚持就是胜利",
-            // ... 可以添加更多语句
+            "困难只是暂时的", "你很特别", "不要放弃", "前方有光",
+            "生活充满希望", "你是独一无二的", "一切皆有可能", "心怀感恩",
+            "善待自己", "小小的进步也是进步", "慢慢来，比较快", "你已经做得很好了",
+            "明天会更好", "阳光总在风雨后", "爱自己是最重要的事", "享受当下",
+            "你的存在让世界更美好", "每一天都是礼物", "微笑是最好的语言",
+            "心中有爱，眼中有光", "做自己的太阳", "温暖他人，照亮自己"
         ];
 
         const colors = [
@@ -87,11 +108,39 @@
         let audio = null;
 
         const statusEl = document.getElementById('status');
+        const debugEl = document.getElementById('debug');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
 
         function updateStatus(message) {
             statusEl.textContent = message;
+        }
+
+        function debug(message) {
+            debugEl.textContent = message;
+            console.log(message);
+        }
+
+        // 检查音乐文件是否存在
+        function checkMusicFile() {
+            // 替换为你的实际GitHub用户名和仓库名
+            const githubUsername = '你的GitHub用户名'; // 请修改这里
+            const musicUrl = `https://${githubUsername}.github.io/background_music.mp3`;
+            
+            return fetch(musicUrl, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        debug('音乐文件存在');
+                        return musicUrl;
+                    } else {
+                        debug('音乐文件不存在，尝试相对路径');
+                        return 'background_music.mp3';
+                    }
+                })
+                .catch(() => {
+                    debug('音乐文件检查失败，使用相对路径');
+                    return 'background_music.mp3';
+                });
         }
 
         function createTip() {
@@ -116,7 +165,7 @@
             }, 10000);
         }
 
-        function startTips() {
+        async function startTips() {
             if (isRunning) return;
             
             isRunning = true;
@@ -126,15 +175,55 @@
             
             updateStatus("正在创建弹窗...");
             
-            // 播放背景音乐
             try {
-                audio = new Audio('background_music.mp3');
+                // 获取正确的音乐文件路径
+                const musicPath = await checkMusicFile();
+                debug(`使用音乐路径: ${musicPath}`);
+                
+                // 播放背景音乐
+                audio = new Audio(musicPath);
                 audio.volume = 0.5;
-                audio.play();
-                updateStatus("音乐播放中...");
+                
+                // 添加事件监听器来跟踪音频状态
+                audio.addEventListener('canplay', () => {
+                    debug('音频可以播放');
+                });
+                
+                audio.addEventListener('error', (e) => {
+                    debug(`音频错误: ${e.target.error.code}`);
+                });
+                
+                audio.addEventListener('loadstart', () => {
+                    debug('开始加载音频');
+                });
+                
+                // 尝试播放音乐
+                const playPromise = audio.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        debug('音乐开始播放');
+                        updateStatus("音乐播放中...");
+                    }).catch(error => {
+                        debug(`自动播放被阻止: ${error}`);
+                        updateStatus("点击页面任意位置播放音乐");
+                        
+                        // 添加点击事件来播放音乐
+                        const playOnClick = () => {
+                            audio.play().then(() => {
+                                debug('用户交互后音乐开始播放');
+                                updateStatus("音乐播放中...");
+                            }).catch(e => {
+                                debug(`播放失败: ${e}`);
+                            });
+                            document.removeEventListener('click', playOnClick);
+                        };
+                        document.addEventListener('click', playOnClick);
+                    });
+                }
             } catch (e) {
-                console.log("音乐播放失败:", e);
-                updateStatus("继续创建弹窗...");
+                debug(`音乐初始化错误: ${e}`);
+                updateStatus("音乐播放失败，继续创建弹窗...");
             }
             
             // 创建弹窗
@@ -161,6 +250,7 @@
 
         // 初始化
         updateStatus("点击开始按钮");
+        debug("页面加载完成");
     </script>
 </body>
 </html>
